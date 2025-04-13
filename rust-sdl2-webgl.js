@@ -44,71 +44,6 @@ let wasm_bindgen;
         return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
     }
 
-    function debugString(val) {
-        // primitive types
-        const type = typeof val;
-        if (type == 'number' || type == 'boolean' || val == null) {
-            return  `${val}`;
-        }
-        if (type == 'string') {
-            return `"${val}"`;
-        }
-        if (type == 'symbol') {
-            const description = val.description;
-            if (description == null) {
-                return 'Symbol';
-            } else {
-                return `Symbol(${description})`;
-            }
-        }
-        if (type == 'function') {
-            const name = val.name;
-            if (typeof name == 'string' && name.length > 0) {
-                return `Function(${name})`;
-            } else {
-                return 'Function';
-            }
-        }
-        // objects
-        if (Array.isArray(val)) {
-            const length = val.length;
-            let debug = '[';
-            if (length > 0) {
-                debug += debugString(val[0]);
-            }
-            for(let i = 1; i < length; i++) {
-                debug += ', ' + debugString(val[i]);
-            }
-            debug += ']';
-            return debug;
-        }
-        // Test for built-in
-        const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
-        let className;
-        if (builtInMatches && builtInMatches.length > 1) {
-            className = builtInMatches[1];
-        } else {
-            // Failed to match the standard '[object ClassName]'
-            return toString.call(val);
-        }
-        if (className == 'Object') {
-            // we're a user defined class or Object
-            // JSON.stringify avoids problems with cycles, and is generally much
-            // easier than looping through ownProperties of `val`.
-            try {
-                return 'Object(' + JSON.stringify(val) + ')';
-            } catch (_) {
-                return 'Object';
-            }
-        }
-        // errors
-        if (val instanceof Error) {
-            return `${val.name}: ${val.message}\n${val.stack}`;
-        }
-        // TODO we could test for more things here, like `Set`s and `Map`s.
-        return className;
-    }
-
     let WASM_VECTOR_LEN = 0;
 
     const cachedTextEncoder = (typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : { encode: () => { throw Error('TextEncoder not available') } } );
@@ -174,9 +109,104 @@ let wasm_bindgen;
         return cachedDataViewMemory0;
     }
 
-    __exports.draw_webgl = function() {
-        wasm.draw_webgl();
-    };
+    const CLOSURE_DTORS = (typeof FinalizationRegistry === 'undefined')
+        ? { register: () => {}, unregister: () => {} }
+        : new FinalizationRegistry(state => {
+        wasm.__wbindgen_export_6.get(state.dtor)(state.a, state.b)
+    });
+
+    function makeMutClosure(arg0, arg1, dtor, f) {
+        const state = { a: arg0, b: arg1, cnt: 1, dtor };
+        const real = (...args) => {
+            // First up with a closure we increment the internal reference
+            // count. This ensures that the Rust closure environment won't
+            // be deallocated while we're invoking it.
+            state.cnt++;
+            const a = state.a;
+            state.a = 0;
+            try {
+                return f(a, state.b, ...args);
+            } finally {
+                if (--state.cnt === 0) {
+                    wasm.__wbindgen_export_6.get(state.dtor)(a, state.b);
+                    CLOSURE_DTORS.unregister(state);
+                } else {
+                    state.a = a;
+                }
+            }
+        };
+        real.original = state;
+        CLOSURE_DTORS.register(real, state, state);
+        return real;
+    }
+
+    function debugString(val) {
+        // primitive types
+        const type = typeof val;
+        if (type == 'number' || type == 'boolean' || val == null) {
+            return  `${val}`;
+        }
+        if (type == 'string') {
+            return `"${val}"`;
+        }
+        if (type == 'symbol') {
+            const description = val.description;
+            if (description == null) {
+                return 'Symbol';
+            } else {
+                return `Symbol(${description})`;
+            }
+        }
+        if (type == 'function') {
+            const name = val.name;
+            if (typeof name == 'string' && name.length > 0) {
+                return `Function(${name})`;
+            } else {
+                return 'Function';
+            }
+        }
+        // objects
+        if (Array.isArray(val)) {
+            const length = val.length;
+            let debug = '[';
+            if (length > 0) {
+                debug += debugString(val[0]);
+            }
+            for(let i = 1; i < length; i++) {
+                debug += ', ' + debugString(val[i]);
+            }
+            debug += ']';
+            return debug;
+        }
+        // Test for built-in
+        const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
+        let className;
+        if (builtInMatches && builtInMatches.length > 1) {
+            className = builtInMatches[1];
+        } else {
+            // Failed to match the standard '[object ClassName]'
+            return toString.call(val);
+        }
+        if (className == 'Object') {
+            // we're a user defined class or Object
+            // JSON.stringify avoids problems with cycles, and is generally much
+            // easier than looping through ownProperties of `val`.
+            try {
+                return 'Object(' + JSON.stringify(val) + ')';
+            } catch (_) {
+                return 'Object';
+            }
+        }
+        // errors
+        if (val instanceof Error) {
+            return `${val.name}: ${val.message}\n${val.stack}`;
+        }
+        // TODO we could test for more things here, like `Set`s and `Map`s.
+        return className;
+    }
+    function __wbg_adapter_22(arg0, arg1) {
+        wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h99490e5d53ad86ca(arg0, arg1);
+    }
 
     async function __wbg_load(module, imports) {
         if (typeof Response === 'function' && module instanceof Response) {
@@ -212,6 +242,18 @@ let wasm_bindgen;
     function __wbg_get_imports() {
         const imports = {};
         imports.wbg = {};
+        imports.wbg.__wbg_attachShader_3d4eb6af9e3e7bd1 = function(arg0, arg1, arg2) {
+            arg0.attachShader(arg1, arg2);
+        };
+        imports.wbg.__wbg_attachShader_94e758c8b5283eb2 = function(arg0, arg1, arg2) {
+            arg0.attachShader(arg1, arg2);
+        };
+        imports.wbg.__wbg_bindVertexArrayOES_da8e7059b789629e = function(arg0, arg1) {
+            arg0.bindVertexArrayOES(arg1);
+        };
+        imports.wbg.__wbg_bindVertexArray_6b4b88581064b71f = function(arg0, arg1) {
+            arg0.bindVertexArray(arg1);
+        };
         imports.wbg.__wbg_call_672a4d21634d4a24 = function() { return handleError(function (arg0, arg1) {
             const ret = arg0.call(arg1);
             return ret;
@@ -228,9 +270,68 @@ let wasm_bindgen;
         imports.wbg.__wbg_clear_f8d5f3c348d37d95 = function(arg0, arg1) {
             arg0.clear(arg1 >>> 0);
         };
+        imports.wbg.__wbg_compileShader_0ad770bbdbb9de21 = function(arg0, arg1) {
+            arg0.compileShader(arg1);
+        };
+        imports.wbg.__wbg_compileShader_2307c9d370717dd5 = function(arg0, arg1) {
+            arg0.compileShader(arg1);
+        };
+        imports.wbg.__wbg_createProgram_8ff56c485f3233d0 = function(arg0) {
+            const ret = arg0.createProgram();
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_createProgram_da203074cafb1038 = function(arg0) {
+            const ret = arg0.createProgram();
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_createShader_4a256a8cc9c1ce4f = function(arg0, arg1) {
+            const ret = arg0.createShader(arg1 >>> 0);
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_createShader_983150fb1243ee56 = function(arg0, arg1) {
+            const ret = arg0.createShader(arg1 >>> 0);
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_createVertexArrayOES_991b44f100f93329 = function(arg0) {
+            const ret = arg0.createVertexArrayOES();
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_createVertexArray_e435029ae2660efd = function(arg0) {
+            const ret = arg0.createVertexArray();
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_deleteShader_8d42f169deda58ac = function(arg0, arg1) {
+            arg0.deleteShader(arg1);
+        };
+        imports.wbg.__wbg_deleteShader_c65a44796c5004d8 = function(arg0, arg1) {
+            arg0.deleteShader(arg1);
+        };
+        imports.wbg.__wbg_detachShader_ab39d8a19811cfa6 = function(arg0, arg1, arg2) {
+            arg0.detachShader(arg1, arg2);
+        };
+        imports.wbg.__wbg_detachShader_cd3ab294e635ff90 = function(arg0, arg1, arg2) {
+            arg0.detachShader(arg1, arg2);
+        };
         imports.wbg.__wbg_document_d249400bd7bd996d = function(arg0) {
             const ret = arg0.document;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        };
+        imports.wbg.__wbg_drawArrays_6acaa2669c105f3a = function(arg0, arg1, arg2, arg3) {
+            arg0.drawArrays(arg1 >>> 0, arg2, arg3);
+        };
+        imports.wbg.__wbg_drawArrays_6d29ea2ebc0c72a2 = function(arg0, arg1, arg2, arg3) {
+            arg0.drawArrays(arg1 >>> 0, arg2, arg3);
+        };
+        imports.wbg.__wbg_error_7534b8e9a36f1ab4 = function(arg0, arg1) {
+            let deferred0_0;
+            let deferred0_1;
+            try {
+                deferred0_0 = arg0;
+                deferred0_1 = arg1;
+                console.error(getStringFromWasm0(arg0, arg1));
+            } finally {
+                wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
+            }
         };
         imports.wbg.__wbg_getContext_e9cf379449413580 = function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.getContext(getStringFromWasm0(arg1, arg2));
@@ -248,6 +349,50 @@ let wasm_bindgen;
             const ret = arg0.getParameter(arg1 >>> 0);
             return ret;
         }, arguments) };
+        imports.wbg.__wbg_getProgramInfoLog_631c180b1b21c8ed = function(arg0, arg1, arg2) {
+            const ret = arg1.getProgramInfoLog(arg2);
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        };
+        imports.wbg.__wbg_getProgramInfoLog_a998105a680059db = function(arg0, arg1, arg2) {
+            const ret = arg1.getProgramInfoLog(arg2);
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        };
+        imports.wbg.__wbg_getProgramParameter_0c411f0cd4185c5b = function(arg0, arg1, arg2) {
+            const ret = arg0.getProgramParameter(arg1, arg2 >>> 0);
+            return ret;
+        };
+        imports.wbg.__wbg_getProgramParameter_360f95ff07ac068d = function(arg0, arg1, arg2) {
+            const ret = arg0.getProgramParameter(arg1, arg2 >>> 0);
+            return ret;
+        };
+        imports.wbg.__wbg_getShaderInfoLog_7e7b38fb910ec534 = function(arg0, arg1, arg2) {
+            const ret = arg1.getShaderInfoLog(arg2);
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        };
+        imports.wbg.__wbg_getShaderInfoLog_f59c3112acc6e039 = function(arg0, arg1, arg2) {
+            const ret = arg1.getShaderInfoLog(arg2);
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        };
+        imports.wbg.__wbg_getShaderParameter_511b5f929074fa31 = function(arg0, arg1, arg2) {
+            const ret = arg0.getShaderParameter(arg1, arg2 >>> 0);
+            return ret;
+        };
+        imports.wbg.__wbg_getShaderParameter_6dbe0b8558dc41fd = function(arg0, arg1, arg2) {
+            const ret = arg0.getShaderParameter(arg1, arg2 >>> 0);
+            return ret;
+        };
         imports.wbg.__wbg_getSupportedExtensions_8c007dbb54905635 = function(arg0) {
             const ret = arg0.getSupportedExtensions();
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
@@ -294,9 +439,39 @@ let wasm_bindgen;
             const ret = arg0.length;
             return ret;
         };
+        imports.wbg.__wbg_linkProgram_067ee06739bdde81 = function(arg0, arg1) {
+            arg0.linkProgram(arg1);
+        };
+        imports.wbg.__wbg_linkProgram_e002979fe36e5b2a = function(arg0, arg1) {
+            arg0.linkProgram(arg1);
+        };
+        imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
+            console.log(arg0);
+        };
+        imports.wbg.__wbg_new_8a6f238a6ece86ea = function() {
+            const ret = new Error();
+            return ret;
+        };
         imports.wbg.__wbg_newnoargs_105ed471475aaf50 = function(arg0, arg1) {
             const ret = new Function(getStringFromWasm0(arg0, arg1));
             return ret;
+        };
+        imports.wbg.__wbg_requestAnimationFrame_d7fd890aaefc3246 = function() { return handleError(function (arg0, arg1) {
+            const ret = arg0.requestAnimationFrame(arg1);
+            return ret;
+        }, arguments) };
+        imports.wbg.__wbg_shaderSource_72d3e8597ef85b67 = function(arg0, arg1, arg2, arg3) {
+            arg0.shaderSource(arg1, getStringFromWasm0(arg2, arg3));
+        };
+        imports.wbg.__wbg_shaderSource_ad0087e637a35191 = function(arg0, arg1, arg2, arg3) {
+            arg0.shaderSource(arg1, getStringFromWasm0(arg2, arg3));
+        };
+        imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
+            const ret = arg1.stack;
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         };
         imports.wbg.__wbg_static_accessor_GLOBAL_88a902d13a557d07 = function() {
             const ret = typeof global === 'undefined' ? null : global;
@@ -314,8 +489,32 @@ let wasm_bindgen;
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         };
+        imports.wbg.__wbg_useProgram_473bf913989b6089 = function(arg0, arg1) {
+            arg0.useProgram(arg1);
+        };
+        imports.wbg.__wbg_useProgram_9b2660f7bb210471 = function(arg0, arg1) {
+            arg0.useProgram(arg1);
+        };
         imports.wbg.__wbg_width_5dde457d606ba683 = function(arg0) {
             const ret = arg0.width;
+            return ret;
+        };
+        imports.wbg.__wbindgen_boolean_get = function(arg0) {
+            const v = arg0;
+            const ret = typeof(v) === 'boolean' ? (v ? 1 : 0) : 2;
+            return ret;
+        };
+        imports.wbg.__wbindgen_cb_drop = function(arg0) {
+            const obj = arg0.original;
+            if (obj.cnt-- == 1) {
+                obj.a = 0;
+                return true;
+            }
+            const ret = false;
+            return ret;
+        };
+        imports.wbg.__wbindgen_closure_wrapper89 = function(arg0, arg1, arg2) {
+            const ret = makeMutClosure(arg0, arg1, 17, __wbg_adapter_22);
             return ret;
         };
         imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
@@ -346,6 +545,10 @@ let wasm_bindgen;
             var len1 = WASM_VECTOR_LEN;
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        };
+        imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
+            const ret = getStringFromWasm0(arg0, arg1);
+            return ret;
         };
         imports.wbg.__wbindgen_throw = function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
